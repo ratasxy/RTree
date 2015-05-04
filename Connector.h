@@ -43,15 +43,38 @@ private:
             return insert(data);
             break;
         default:
+            return select(data);
             break;
         }
 
         return QString("");
     }
 
+    QString select(QJsonObject & data)
+    {
+        std::cout << "Select" << std::endl;
+
+        points geometry = this->parsePoints(data);
+        int value = (int) data["value"].toString().toDouble();
+
+        Hyperrectangle boundingbox(geometry);
+        vector<int> objects;
+        this->tree->Search(boundingbox, objects);
+        QJsonObject o;
+        o["status"]=QString("ok");
+        QJsonArray points;
+        for(int object : objects)
+        {
+            points.push_back(QString::number(object));
+        }
+        o["objects"]=points;
+        QJsonDocument ans(o);
+        return ans.toJson().toBase64();
+    }
+
     QString insert(QJsonObject & data)
     {
-        std::cout << "Insert" << std::endl;
+        std::cout << "Insert " << data["value"].toString().toStdString() << std::endl;
 
         points geometry = this->parsePoints(data);
 
@@ -61,8 +84,7 @@ private:
         this->tree->insert(boundingbox, value);
 
         QJsonObject o;
-        //QJsonValue status();
-        //o.insert("status", status);
+        o["status"]=QString("ok");
         QJsonDocument ans(o);
         return ans.toJson().toBase64();
     }
@@ -108,10 +130,8 @@ public:
 
             QString ans = this->makeFunction(dataObject);
 
-            sleep(1);
-
-            zmq::message_t reply (5);
-            memcpy ((void *) reply.data (), ans.toStdString().c_str(), ans.length());
+            zmq::message_t reply (ans.size());
+            memcpy ((void *) reply.data (), ans.toStdString().c_str(), ans.size());
             this->socket->send(reply);
         }
     }
