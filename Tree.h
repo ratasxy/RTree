@@ -4,6 +4,8 @@
 #include "config.h"
 #include "Hyperrectangle.h"
 
+using namespace std;
+
 template<typename Container>
 class Tree
 {
@@ -35,21 +37,38 @@ public:
         this->nDimensions = nDimensions;
     }
 
-    bool insert(Hyperrectangle BoundingBox, Container data)
+    bool insert(Hyperrectangle BoundingBox, Container &data)
     {
       Node * s;
-      this->chooseLeaf(BoundingBox, data, s);
+      Container * d = new Container;
+      *d = data;
+      this->chooseLeaf(BoundingBox, *d, s);
 
-      if(s->entries.size() < CHILDS)add(BoundingBox, data, s);
+      if(s->entries.size() < CHILDS){
+        s->entries.push_back(make_pair(BoundingBox,static_cast<void *>(d)));
+        //cout << s->entries[s->entries.size()-1] << endl;
+        return true;
+      }
 
-      //*s = new Node(data);
+      Node a(s->parent, s->level);
+      Node *tmp = &a;
+      entry n = make_pair(BoundingBox, static_cast<void *>(d));
+      this->split(s,&a,n);
+      cout << s->entries.size() << "   " << a.entries.size() << endl;
+      this->AdjustTree(&s, &tmp);
 
       return true;
     }
 
-    bool add(Hyperrectangle BoundingBox, Container data, Node* &s)
+    size_t IdxNode(Node * &parent, Node * &child)
     {
-        s->entries.push_back(make_pair(BoundingBox,(void *)&data));
+        for (size_t n_idx;n_idx<parent->entries.size();n_idx++)
+        {
+            if (parent->entries[n_idx].second == child)
+            {
+                return n_idx;
+            }
+        }
     }
 
     bool chooseLeaf(Hyperrectangle BoundingBox, Container data, Node* &s)
@@ -92,19 +111,7 @@ public:
         return Hyperrectangle(mbr_points);
     }
 
-
-    size_t IdxNode(Node * &parent, Node * &child)
-    {
-        for (size_t n_idx;n_idx<parent->entries.size();n_idx++)
-        {
-            if (parent->entries[n_idx].second == child)
-            {
-                return n_idx;
-            }
-        }
-    }
-
-    void AdjustTree(Node ** & l,Node ** & splitted)
+    void AdjustTree(Node **  l,Node **  splitted)
     {
         Node ** n= &(*l);
         if ((*n) == this->head)
@@ -117,21 +124,19 @@ public:
         (*parent)->entries[n_idx].first=Adjust(*n);
         if (splitted != NULL)
         {
-            if ((*splitted)->entries.size()< 4 /* (4 es un numero que puse cualquiera pero debe ser: M-1)*/ )
+            if ((*splitted)->entries.size()< CHILDS-1)
             {
-                typename Node::entry new_entry;
+                typename Tree::entry new_entry;
                 Node ** sp_parent =&((*splitted)->parent);
                 new_entry.second=(void*)(*splitted);
-                new_entry.first=(*sp_parent)->entries[idxNode(*sp_parent,*splitted)].first;
+                new_entry.first=(*sp_parent)->entries[IdxNode(*sp_parent,*splitted)].first;
                 (*parent)->entries.push_back(new_entry);
                 return AdjustTree(parent,NULL);
 
             }
             else
             {
-                /*Set {Parent, Parent’} = SplitNode (Parent, Splitted)
-                 *return AdjustTree(parent,Parent');
-                 */
+               //return AdjustTree(parent,Parent);
             }
         }
         else
@@ -142,17 +147,15 @@ public:
 
     }
 
-    bool Search(Hyperrectangle BoundingBox)
+    bool Search(Hyperrectangle BoundingBox, vector<Container> &stack)
     {
 
         Node **s;
         s=&this->head;
-        return find(BoundingBox,s);
-
-
+        return find(BoundingBox,s,stack);
     }
 
-    bool find(Hyperrectangle BoundingBox, Node** &s )
+    bool find(Hyperrectangle BoundingBox, Node** &s, vector<Container> &stack)
     {
 
         if ((*s)->level == 0)
@@ -161,9 +164,10 @@ public:
             {
                 if((*s)->entries[i].first.overlap(BoundingBox))
                 {
-                    return true;
+                    stack.push_back(*static_cast<Container *>((*s)->entries[i].second));
                 }
             }
+            return true;
         }
 
         for (int i=0;i<(*s)->entries.size();i++)
@@ -171,11 +175,11 @@ public:
             if((*s)->entries[i].first.overlap(BoundingBox))
             {
                 s=(Node**) (& (*s)->entries[i].second);
-                find(BoundingBox,s);
+                find(BoundingBox,s,stack);
             }
         }
 
-        return false;
+        return true;
 
     }
 
@@ -204,7 +208,7 @@ public:
         int e, ng;
         while(group.size())
         {
-            pickNext(group, h1, h2, e);
+            pickNext(group, &h1, &h2, e, ng);
             if(ng < 1)
             {
                 l->entries.push_back(group[e]);
@@ -221,9 +225,10 @@ public:
     {
         double d = 0;
         double tmp;
+        cout << block.size() << endl;
         for(int i=0;i<block.size();i++)
         {
-            for(int j=i;j<block.size();i++)
+            for(int j=i+1;j<block.size();j++)
             {
                 tmp = abs(block[i].first.contain(block[j].first) - block[i].first.area() - block[j].first.area()) ;
                 if(d < (tmp))
@@ -238,16 +243,17 @@ public:
 
     void pickNext(aentry noGroup, Hyperrectangle * g1, Hyperrectangle * g2, int &e, int&ng)
     {
-        double m = 0;
+        double m = -1;
         double d1;
         double d2;
+        ng = 0;
 
         for(int i=0;i<noGroup.size();i++)
         {
             d1 = noGroup[i].first.contain(*g1);
             d2 = noGroup[i].first.contain(*g2);
 
-            if(m > abs(d1 - d2))
+            if(m < abs(d1 - d2))
             {
                 m = abs(d1 - d2);
                 e = i;
@@ -344,10 +350,6 @@ public:
              head=&(this->head->entries[0].second);
          }
      }
-
-
-
-    
 };
 
 

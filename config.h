@@ -9,7 +9,7 @@ using namespace std;
 typedef pair<double, double> point;
 typedef vector<point> points;
 
-static const int CHILDS = 3;
+static const int CHILDS = 50;
 static const double INF = 999999999;
 
 

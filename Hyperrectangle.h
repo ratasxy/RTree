@@ -3,16 +3,23 @@
 
 #include "vector"
 
+using namespace std;
+
 class Hyperrectangle
 {   
 private:
-    points vertices;
+
 public:
+    points vertices;
     points getVertices()
     {
         return this->vertices;
     }
 
+    Hyperrectangle()
+    {
+
+    }
     Hyperrectangle(points vertices)
     {
         this->vertices = vertices;
@@ -32,7 +39,7 @@ public:
         points v = o.getVertices();
 
         double tmp = 1; int i=0;
-        for(pair<double,double> dimension : this->vertices){
+        for(auto dimension : this->vertices){
             tmp *= (min(dimension.second, v[i].second) - max(dimension.first, v[i].first));
             i++;
         }
